@@ -7,7 +7,19 @@
 *.so
 *.dylib
 
+# Compiled binaries
+*.elf
+*.hex
+*.eep
+
 # Compiled Static libraries
 *.lai
 *.la
 *.a
+
+# Backup files
+*~
+
+# Eclipse and Intellij project
+*.iml
+.project
