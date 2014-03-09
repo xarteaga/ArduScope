@@ -1,6 +1,9 @@
 // Definitions
 #define SERIAL_BAUDRATE 115200
 #define ETHERNET_PORT 80
+#define ANALOG_PIN 0
+#define DATA_LEN 9
+//#define LISTEN_MESSAGES /* Uncomment this line for allow receive messages */
 
 // Includes
 #include <Arduino.h>
@@ -9,68 +12,25 @@
 #include "sha1.h"
 #include "Base64.h"
 #include <socket.h>
+#include <USBAPI.h>
 
-#include "wiring_private.h"
-#include "pins_arduino.h"
+#include <wiring_private.h>
+#include <pins_arduino.h>
 
 EthernetServer server = EthernetServer(ETHERNET_PORT);
 EthernetClient client;
+char messageBuffer[126];
 
 void setup() {
 	// Initialize Serial port (RS232)
 	Serial.begin(SERIAL_BAUDRATE);
+	Serial.println("Starting WebSocket server...");
 
 	// Start Ethernet server
 	Ethernet.begin((uint8_t[] ) { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED },
 			(uint8_t[] ) { 192, 168, 10, 2 });
 	server.begin();
-	
-}
 
-inline uint16_t readPin()
-{
-	uint8_t low, high, pin;
-
-#if defined(__AVR_ATmega32U4__)
-	pin = analogPinToChannel(9);
-	ADCSRB = (ADCSRB & ~(1 << MUX5)) | (((pin >> 3) & 0x01) << MUX5);
-#elif defined(ADCSRB) && defined(MUX5)
-	// the MUX5 bit of ADCSRB selects whether we're reading from channels
-	// 0 to 7 (MUX5 low) or 8 to 15 (MUX5 high).
-	ADCSRB = (ADCSRB & ~(1 << MUX5)) | (((pin >> 3) & 0x01) << MUX5);
-#endif
-
-	// set the analog reference (high two bits of ADMUX) and select the
-	// channel (low 4 bits).  this also sets ADLAR (left-adjust result)
-	// to 0 (the default).
-#if defined(ADMUX)
-	ADMUX = (DEFAULT << 6) | (pin & 0x07);
-#endif
-
-	// without a delay, we seem to read from the wrong channel
-	//delay(1);
-
-#if defined(ADCSRA) && defined(ADCL)
-	// start the conversion
-	sbi(ADCSRA, ADSC);
-
-	// ADSC is cleared when the conversion finishes
-	while (bit_is_set(ADCSRA, ADSC));
-
-	// we have to read ADCL first; doing so locks both ADCL
-	// and ADCH until ADCH is read.  reading ADCL second would
-	// cause the results of each conversion to be discarded,
-	// as ADCL and ADCH would be locked when it completed.
-	low  = ADCL;
-	high = ADCH;
-#else
-	// we dont have an ADC, return 0
-	low  = 0;
-	high = 0;
-#endif
-
-	// combine the two bytes
-	return (high << 8) | low;
 }
 
 #define HEADLEN 17
@@ -123,7 +83,6 @@ void handshake() {
 
 }
 
-char message[126];
 boolean readMessage() {
 	uint8_t mask[4];
 	uint8_t f, c, size, i;
@@ -132,7 +91,7 @@ boolean readMessage() {
 		return false;
 
 	f = client.read(); // First byte 129 Always
-	if (f==0x88){
+	if (f == 0x88) {
 		client.stop();
 		return false;
 	}
@@ -147,9 +106,9 @@ boolean readMessage() {
 	}
 
 	for (i = 0; i < size; i++) {
-		message[i] = client.read() ^ mask[i & 0x3];
+		messageBuffer[i] = client.read() ^ mask[i & 0x3];
 	}
-	message[i] = '\0';
+	messageBuffer[i] = '\0';
 	//client.flush();
 	return true;
 }
@@ -161,66 +120,116 @@ inline void sendMessage(const char * msg, uint8_t size) {
 	client.flushTx();
 }
 
+void stream() {
+	uint8_t s = client.status(); // TCP Client status
+
+	uint8_t msg[DATA_LEN + 1] = "STAM RAWV"; // Message with the time stamp (12 bit, from 0 to 8191) and the raw value (V)
+	uint8_t head[] = { 0x81, DATA_LEN }; // Message Head with the opening byte and message length
+	uint8_t _sock = client.getSocket();		// Socket (Faster without stack)
+
+	uint8_t low, high;
+	uint16_t raw, stamp;
+
+	// Set ADC MUX to the desired pin
+	ADMUX = (DEFAULT << 6) | (ANALOG_PIN & 0x07);
+
+	// While client is connected stream reads
+	while (!(s == SnSR::LISTEN || s == SnSR::CLOSED || s == SnSR::FIN_WAIT)) {
+		// Start conversion; While the Micro is converting, it gets the time stamp
+		sbi(ADCSRA, ADSC);
+
+		// Get time stamp
+		stamp = micros() & 0x1FFF;
+
+		// Build message time stamp
+		msg[3] = 0x30 + stamp % 10;
+		stamp /= 10;
+		msg[2] = 0x30 + stamp % 10;
+		stamp /= 10;
+		msg[1] = 0x30 + stamp % 10;
+		stamp /= 10;
+		msg[0] = 0x30 + stamp;
+
+		// Send head
+		send(_sock, head, 2);
+
+		// Wait until the conversion finishes
+		while (bit_is_set(ADCSRA, ADSC))
+			Serial.println(F("Warning! RT Error!"));
+
+		low = ADCL;
+		high = ADCH;
+
+		// combine the two bytes
+		raw = (high << 8) | low;
+
+		// Build message value
+		msg[8] = 0x30 + raw % 10;
+		raw /= 10;
+		msg[7] = 0x30 + raw % 10;
+		raw /= 10;
+		msg[6] = 0x30 + raw % 10;
+		raw /= 10;
+		msg[5] = 0x30 + raw;
+
+		// Send message
+		send(_sock, (uint8_t*) msg, DATA_LEN);
+
+#ifdef LISTEN_MESSAGES
+		if (readMessage()) {
+			Serial.print(F("Message: '"));
+			Serial.print(messageBuffer);
+			Serial.println("'");
+			sendMessage(messageBuffer, strlen(messageBuffer));
+		}
+#endif // LISTEN_MESSAGES
+
+		// Update status
+		s = client.status();
+	}
+}
+
 int main(void) {
-	uint8_t i;
+	// Initialize Arduino API
 	init();
 
 #if defined(USBCON)
 	USB.attach();
 #endif
 
+	// Call setup
 	setup();
 
-	for (;;) {
+	// Forever
+	while (true) {
 		client = server.available();
 		if (!client)
 			continue;
 
+		// If somebody has connected, handshake
 		Serial.println(F("---> Client connected <---"));
 		handshake();
 
+		// If the client remains connected do not continue
 		if (!client.connected()) {
 			Serial.println(F("---> Client Disconnected after handshake <---"));
 			continue;
 		}
-		uint8_t msg [] = "XXXX XXXX";
-		uint8_t head []= {0x81,sizeof(msg)};
-		uint8_t _sock = client.getSocket();
-		uint16_t raw;
-		uint16_t stamp;
-		/*msg[0] = 0x81;
-		msg[1] = sizeof(msg);*/
-		while (client.connected()) {
-			raw = readPin();
-			stamp = micros() & 0x1FFF;
-#define STAMP_PTR 0
-#define VAL_PTR 5
-			msg[STAMP_PTR+3] = 0x30 + stamp % 10;
-			stamp /= 10;
-			msg[STAMP_PTR+2] = 0x30 + stamp % 10;
-			stamp /= 10;
-			msg[STAMP_PTR+1] = 0x30 + stamp % 10;
-			stamp /= 10;
-			msg[STAMP_PTR+0] = 0x30 + stamp % 10;
-			stamp /= 10;
-			msg[VAL_PTR+3] = 0x30 + raw % 10;
-			raw /= 10;
-			msg[VAL_PTR+2] = 0x30 + raw % 10;
-			raw /= 10;
-			msg[VAL_PTR+1] = 0x30 + raw % 10;
-			raw /= 10;
-			msg[VAL_PTR+0] = 0x30 + raw % 10;
-			raw /= 10;
-			send(_sock, (uint8_t*)head, sizeof(head));
-			send(_sock, (uint8_t*)msg, sizeof(msg));
 
-			/*if (readMessage()) {
-				Serial.print(F("Message: '"));
-				Serial.print(message);
+		// While the client is connected listen messages
+		while (client.connected()) {
+			// If message, print it
+			if (readMessage()) {
+				Serial.print(F("Message Received: '"));
+				Serial.print(messageBuffer);
 				Serial.println("'");
-				delay(1000);
-				sendMessage(message, strlen(message));
-			}*/
+				//sendMessage(messageBuffer, strlen(messageBuffer)); // Uncomment for enable echo
+
+				// If "START" detected, start stream
+				if (strcmp(messageBuffer, "START") == 0) {
+					stream();
+				}
+			}
 		}
 
 		Serial.println(F("---> Client Disconnected <---"));
