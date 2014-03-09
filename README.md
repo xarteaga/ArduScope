@@ -5,7 +5,7 @@ ArduScope is a litle base for use the an Arduino board as data adquisition board
 
 #Details
 * Websocket communication between Arduino board and web browser.
-* Maxium sampling frequency about 1 kHz.
+* Maxium sampling frequency about 1.3 kHz.
 * Boostrap style and javascript for GUI.
 * D3 Drawing engine for graph.
 

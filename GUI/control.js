@@ -8,7 +8,7 @@ var data = [];
 var counter = 0;
 var stamp;
 var samplingTime=0;
-var alpha = 0.5;
+var alpha = 0.01;
 function init() {
     output = document.getElementById("output");
     testWebSocket();
@@ -31,7 +31,7 @@ function testWebSocket() {
 }
 function onOpen(evt) {
     writeToScreen("CONNECTED");
-    doSend("WebSocket rocks");
+    doSend("START");
 }
 function onClose(evt) {
     writeToScreen("DISCONNECTED");

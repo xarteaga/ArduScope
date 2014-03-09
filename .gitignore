@@ -22,4 +22,6 @@
 
 # Eclipse and Intellij project
 *.iml
+.cproject
 .project
+Firmware/.settings
