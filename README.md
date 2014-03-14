@@ -14,9 +14,9 @@ ArduScope is a litle base for use the an Arduino board as data adquisition board
 * Signal generator between 0 and 5 v output voltage (a pontentiometer or whatever sensor can be used also).
 * Linux Host (I used Ubuntu 12.04).
 * GNU Make.
-* Arduino core, AVR compiler (gcc-avr 4.5.3, available [here](http://packages.ubuntu.com/lucid/amd64/gcc-avr/download)) and loaders.
+* Arduino core, AVR compiler and loaders.
 * Free ethernet interface and cable.
-* A web browser (it has been tested with Google Chrome/ium and Firefox)
+* A web browser (it has been tested with Google Chrome/ium and Firefox). IE is not supported.
 
 # Intructions (Ubuntu)#
 1. Download the project code (zip or using git clone)

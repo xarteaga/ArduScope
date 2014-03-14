@@ -7,7 +7,6 @@ extern "C" {
 #include <avr/pgmspace.h>
 #include <WString.h>
 #include "Arduino.h"
-#include "SD.h"
 #include "Ethernet.h"
 #include "EthernetClient.h"
 #include "EthernetServer.h"
@@ -136,24 +135,6 @@ size_t EthernetClient::pushTx(uint8_t *buf, size_t size) {
 		return 0;
 	}
 	data_offset += size;
-	return data_offset;
-}
-
-size_t EthernetClient::pushTx(const __FlashStringHelper* buf) {
-	uint16_t offset;
-	char c;
-	while (true) {
-		strlcpy_P(&c, (const prog_char*)buf + offset, 1);
-		if (c == '\0')
-			break;
-		if (pushTx(c) == 0) {
-			Serial.println(
-					F("ERROR PUSHING FLASH STRING INTO ETHERNET CLIENT"));
-			return 0;
-		}
-		offset++;
-	}
-	data_offset += offset;
 	return data_offset;
 }
 

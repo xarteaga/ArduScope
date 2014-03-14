@@ -22,13 +22,15 @@ EthernetClient client;
 char messageBuffer[126];
 
 void setup() {
+	uint8_t ip []= {192, 168, 10, 2};
+	uint8_t mac [] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+
 	// Initialize Serial port (RS232)
 	Serial.begin(SERIAL_BAUDRATE);
 	Serial.println("Starting WebSocket server...");
 
 	// Start Ethernet server
-	Ethernet.begin((uint8_t[] ) { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED },
-			(uint8_t[] ) { 192, 168, 10, 2 });
+	Ethernet.begin(mac, ip);
 	server.begin();
 
 }
@@ -43,9 +45,11 @@ void handshake() {
 	while (client.connected() && client.available()) {
 		// Read header
 		c = client.read();
+		Serial.print(c);
 		for (i = 0; i < HEADLEN && c != ':'; i++) {
 			buffer[i] = c;
 			c = client.read();
+			Serial.print(c);
 		}
 
 		// Check if header is the websocket key
@@ -202,8 +206,11 @@ int main(void) {
 
 	// Forever
 	while (true) {
+		delay(1000);
+		Serial.println("ECHO!");
+
 		client = server.available();
-		if (!client)
+		if (!client.connected())
 			continue;
 
 		// If somebody has connected, handshake

@@ -31,7 +31,6 @@ public:
   virtual size_t pushTx(char []);
 //  size_t pushTx(const uint8_t *, size_t);
   size_t pushTx(uint8_t *, size_t);
-  virtual size_t pushTx(const __FlashStringHelper* buf);
   virtual size_t flushTx();
   uint8_t getSocket();
 

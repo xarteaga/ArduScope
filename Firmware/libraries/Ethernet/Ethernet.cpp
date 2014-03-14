@@ -60,9 +60,9 @@ void EthernetClass::begin(uint8_t *mac, IPAddress local_ip, IPAddress dns_server
 {
   W5100.init();
   W5100.setMACAddress(mac);
-  W5100.setIPAddress(local_ip._address);
-  W5100.setGatewayIp(gateway._address);
-  W5100.setSubnetMask(subnet._address);
+  W5100.setIPAddress(local_ip._address.a8);
+  W5100.setGatewayIp(gateway._address.a8);
+  W5100.setSubnetMask(subnet._address.a8);
   _dnsServerAddress = dns_server;
 }
 
