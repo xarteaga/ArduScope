@@ -77,7 +77,6 @@ void handshake() {
 			client.pushTx("Sec-WebSocket-Accept: ");
 			client.pushTx(b64Result, len);
 			client.pushTx("\r\n\r\n");
-//			client.pushTx("\r\nSec-WebSocket-Protocol: chat\r\n\r\n");
 			client.flushTx();
 			return;
 		}
@@ -145,36 +144,37 @@ void stream() {
 		// Get time stamp
 		stamp = micros() & 0x1FFF;
 
-		// Build message time stamp
-		msg[3] = 0x30 + stamp % 10;
-		stamp /= 10;
-		msg[2] = 0x30 + stamp % 10;
-		stamp /= 10;
-		msg[1] = 0x30 + stamp % 10;
-		stamp /= 10;
-		msg[0] = 0x30 + stamp;
+		// Build message timze stamp
+		msg[3] = 0x41 + (stamp & 0xF);
+		stamp = stamp >> 4;
+		msg[2] = 0x41 + (stamp & 0xF);
+		stamp = stamp >> 4;
+		msg[1] = 0x41 + (stamp & 0xF);
+		stamp = stamp >> 4;
+		msg[0] = 0x41 + (stamp & 0xF);
 
-		// Send head
+		// Send head with opening byte and message length
 		send(_sock, head, 2);
 
 		// Wait until the conversion finishes
 		while (bit_is_set(ADCSRA, ADSC))
 			Serial.println(F("Warning! RT Error!"));
 
+		// Get valies of the ADC registers
 		low = ADCL;
 		high = ADCH;
 
-		// combine the two bytes
+		// Combine the two bytes
 		raw = (high << 8) | low;
 
 		// Build message value
-		msg[8] = 0x30 + raw % 10;
-		raw /= 10;
-		msg[7] = 0x30 + raw % 10;
-		raw /= 10;
-		msg[6] = 0x30 + raw % 10;
-		raw /= 10;
-		msg[5] = 0x30 + raw;
+		msg[8] = 0x41 + (raw & 0xF);
+		raw = raw >> 4;
+		msg[7] = 0x41 + (raw & 0xF);
+		raw = raw >> 4;
+		msg[6] = 0x41 + (raw & 0xF);
+		raw = raw >> 4;
+		msg[5] = 0x41 + raw;
 
 		// Send message
 		send(_sock, (uint8_t*) msg, DATA_LEN);

@@ -40,13 +40,26 @@ function onClose(evt) {
 function onMessage(evt) {
     //var d = JSON.parse(evt.data.substr(0, 31));
     var res = evt.data.split(" ");
+	var strval = res[1];
+	var val = 0;
+	for (i=0; i<strval.length; i++){
+		val = val*16 + strval.charCodeAt(i) - 65;
+	}
+
     if (typeof (data[counter])==='undefined')
-        data[counter] = {x: counter, y : parseInt(res[1])};
+        data[counter] = {x: counter, y : val};
     else
-        data[counter].y = parseInt(res[1]);
+        data[counter].y = val;
 
     var pstamp = stamp;
-    stamp = parseInt(res[0]);
+    res = res[0];
+	if (counter==10)
+		console.log("Time stamp: " + res + "("+evt.data+")");
+	stamp = 0.0;
+	for (i=0; i<res.length; i++){
+		stamp = stamp*16 + res.charCodeAt(i)-65;
+	}
+//    stamp = parseInt(res[0]);
     if (pstamp<stamp){
         samplingTime = samplingTime*(1-alpha) + alpha*(stamp-pstamp);
     }
